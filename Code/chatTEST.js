@@ -3177,6 +3177,9 @@ Make sure to follow all the instructions while answering questions.
     }
   });
 
+  document.getElementById('refresh-favicon').addEventListener('click', function() {
+    updateFavicon();
+});
   document.getElementById("read-all").addEventListener("click", async () => {
     try {
       await markAllMessagesAsRead();
