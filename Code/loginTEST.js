@@ -52,7 +52,7 @@
     }
 
     fetch(
-      "https://raw.githubusercontent.com/Fluffy-Bunny-23/Yap-Window/refs/heads/main/Code/guiTEST.js?token=$(date +%s)",
+      "https://raw.githubusercontent.com/Fluffy-Bunny-23/Yap-Window/refs/heads/Fluffy-Bunny-23-patch-favicon-refresh-button/Code/guiTEST.js",
     )
       .then((r) => r.text())
       .then((code) => {
@@ -74,7 +74,7 @@
             child,
           };
           fetch(
-            "https://raw.githubusercontent.com/Fluffy-Bunny-23/Yap-Window/refs/heads/main/Code/chatTEST.js?token=$(date +%s)",
+            "https://raw.githubusercontent.com/Fluffy-Bunny-23/Yap-Window/refs/heads/Fluffy-Bunny-23-patch-favicon-refresh-button/Code/chatTEST.js",
           )
             .then((r) => r.text())
             .then((chatCode) => {
