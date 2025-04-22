@@ -1154,7 +1154,6 @@ a:hover {
       <button id="hide-left-sidebar" class="setting-button">☰</button>
       <button id="user-activity" class="setting-button">👥</button>
       <button id="modify-channel" class="setting-button" style="display: none">✏️</button>
-      <button id="refresh-favicon" class="setting-button">🔄</button>
    </div>
    <div id="lower-chat" class="chat">
       <div id="left-sidebar">
