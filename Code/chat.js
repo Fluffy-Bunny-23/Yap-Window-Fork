@@ -940,6 +940,9 @@
           if (
             mention.dataset.email === email ||
             mention.dataset.email === "Everyone"
+            mention.dataset.email === "ADMINS"
+            mention.dataset.email === "Staff"
+            mention.dataset.email === "Devs"
           ) {
             mention.classList.add("highlight");
           }
@@ -2306,8 +2309,8 @@ Make sure to follow all the instructions while answering questions.
         }
       });
 
-      const items = ["[AI]", "[EOD]", "[RNG]", "[Snake Game]", "Everyone"];
-      const usernames = ["AI", "EOD", "RNG", "Snake", "Everyone"];
+      const items = ["[AI]", "[EOD]", "[RNG]", "[Snake Game]", "Everyone", "ADMINS", "Staff", "Devs"];
+      const usernames = ["AI", "EOD", "RNG", "Snake", "Everyone", "ADMINS", "Staff", "Devs"];
 
       items.forEach((item, index) => {
         const username = usernames[index];
