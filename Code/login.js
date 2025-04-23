@@ -51,7 +51,7 @@
     }
 
     fetch(
-      "https://raw.githubusercontent.com/Fluffy-Bunny-23/Yap-Window/refs/heads/Fluffy-Bunny-23-patch-more-%40/Code/gui.js?token=$(date +%s)",
+      "https://raw.githubusercontent.com/Fluffy-Bunny-23/Yap-Window/refs/heads/Fluffy-Bunny-23-patch-more-%40/Code/gui.js",
     )
       .then((r) => r.text())
       .then((code) => {
@@ -73,7 +73,7 @@
             child,
           };
           fetch(
-            "https://raw.githubusercontent.com/Fluffy-Bunny-23/Yap-Window/refs/heads/Fluffy-Bunny-23-patch-more-%40/Code/chat.js?token=$(date +%s)",
+            "https://raw.githubusercontent.com/Fluffy-Bunny-23/Yap-Window/refs/heads/Fluffy-Bunny-23-patch-more-%40/Code/chat.js",
           )
             .then((r) => r.text())
             .then((chatCode) => {
