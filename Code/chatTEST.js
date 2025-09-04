@@ -34,331 +34,83 @@
 
     // --- VC FUNCTIONALITY ---
     try {
-      // Create VC container in bottom left
-      const vcContainer = document.createElement('div');
-      vcContainer.id = 'vc-container';
-      vcContainer.style.position = 'fixed';
-      vcContainer.style.left = '20px';
-      vcContainer.style.bottom = '20px';
-      vcContainer.style.zIndex = '9999';
-      vcContainer.style.width = '320px';
-      vcContainer.style.background = '#f9f9f9';
-      vcContainer.style.borderRadius = '8px';
-      vcContainer.style.boxShadow = '0 2px 10px rgba(0,0,0,0.15)';
-      vcContainer.style.fontFamily = 'sans-serif';
-      vcContainer.style.padding = '10px';
-      vcContainer.innerHTML = `
-        <div style="display: flex; align-items: center; justify-content: space-between;">
-          <h3 style="margin: 0; font-size: 1.1em; color: #333;">Voice Chat (<span id="vc-current-channel">General</span>)</h3>
-          <button id="vc-leave-btn" style="display:none; background:#f44336; color:white; border:none; border-radius:4px; padding:4px 10px; cursor:pointer;">Leave</button>
-        </div>
-        <div id="vc-auth-section">
-          <button id="vc-signin-btn" style="background:#4285F4; color:white; border:none; border-radius:4px; padding:6px 12px; cursor:pointer; margin-top:8px;">Sign in with Google</button>
-        </div>
-        <div id="vc-main-section" style="display:none;">
-          <div id="vc-status" style="font-size:13px; color:#666; margin-bottom:6px;"></div>
-          <div id="vc-participants" style="margin-bottom:8px;"></div>
-          <button id="vc-mute-btn" style="background:#4CAF50; color:white; border:none; border-radius:4px; padding:6px 12px; cursor:pointer;">Mute</button>
-          <div id="vc-audio-elems" style="display:none;"></div>
-        </div>
-      `;
-      document.body.appendChild(vcContainer);
+      (async function vcInit() {
+        // Create VC container in bottom left
+        const vcContainer = document.createElement('div');
+        vcContainer.id = 'vc-container';
+        vcContainer.style.position = 'fixed';
+        vcContainer.style.left = '20px';
+        vcContainer.style.bottom = '20px';
+        vcContainer.style.zIndex = '9999';
+        vcContainer.style.width = '320px';
+        vcContainer.style.background = '#f9f9f9';
+        vcContainer.style.borderRadius = '8px';
+        vcContainer.style.boxShadow = '0 2px 10px rgba(0,0,0,0.15)';
+        vcContainer.style.fontFamily = 'sans-serif';
+        vcContainer.style.padding = '10px';
+        vcContainer.innerHTML = `
+          <div style="display: flex; align-items: center; justify-content: space-between;">
+            <h3 style="margin: 0; font-size: 1.1em; color: #333;">Voice Chat (<span id="vc-current-channel">General</span>)</h3>
+            <button id="vc-leave-btn" style="display:none; background:#f44336; color:white; border:none; border-radius:4px; padding:4px 10px; cursor:pointer;">Leave</button>
+          </div>
+          <div id="vc-auth-section">
+            <button id="vc-signin-btn" style="background:#4285F4; color:white; border:none; border-radius:4px; padding:6px 12px; cursor:pointer; margin-top:8px;">Sign in with Google</button>
+          </div>
+          <div id="vc-main-section" style="display:none;">
+            <div id="vc-status" style="font-size:13px; color:#666; margin-bottom:6px;"></div>
+            <div id="vc-participants" style="margin-bottom:8px;"></div>
+            <button id="vc-mute-btn" style="background:#4CAF50; color:white; border:none; border-radius:4px; padding:6px 12px; cursor:pointer;">Mute</button>
+            <div id="vc-audio-elems" style="display:none;"></div>
+          </div>
+        `;
+        document.body.appendChild(vcContainer);
 
-      // Load Material Icons for mute button
-      const materialIconsLink = document.createElement("link");
-      materialIconsLink.rel = "stylesheet";
-      materialIconsLink.href = "https://fonts.googleapis.com/icon?family=Material+Icons";
-      document.head.appendChild(materialIconsLink);
+        // Load Material Icons for mute button
+        const materialIconsLink = document.createElement("link");
+        materialIconsLink.rel = "stylesheet";
+        materialIconsLink.href = "https://fonts.googleapis.com/icon?family=Material+Icons";
+        document.head.appendChild(materialIconsLink);
 
-      // Firebase config (from vcTEST.js)
-      const firebaseConfig = {
-        apiKey: "AIzaSyDxEnp1678f73t0QPCr8dfP00vI_emKqa8",
-        authDomain: "testing-7d972.firebaseapp.com",
-        databaseURL: "https://testing-7d972-default-rtdb.firebaseio.com",
-        projectId: "testing-7d972",
-        storageBucket: "testing-7d972.appspot.com",
-        messagingSenderId: "327875935397",
-        appId: "1:327875935397:web:13e6a090b0229da791e14c",
-      };
-
-      // VC state
-      let vcApp, vcDb, vcAuth, vcGoogleProvider;
-      let vcMyId = null;
-      let vcMyEmail = null;
-      let vcLocalStream = null;
-      let vcIsMuted = false;
-      let vcPeerConnections = {};
-      let vcCurrentChannel = 'General';
-      let vcCurrentRoomId = null;
-      let vcRoomListListener = null;
-
-      // Helper
-      function vcLog(msg) { console.log('[VC]', msg); }
-      function vcSetStatus(msg) { document.getElementById('vc-status').textContent = msg; }
-
-      // Load Firebase modules
-      const { initializeApp } = await import("https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js");
-      const { getDatabase, ref, push, onChildAdded, onChildRemoved, set, remove, onValue, get, update } = await import("https://www.gstatic.com/firebasejs/11.0.2/firebase-database.js");
-      const { getAuth, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged } = await import("https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js");
-
-      vcApp = initializeApp(firebaseConfig);
-      vcDb = getDatabase(vcApp);
-      vcAuth = getAuth(vcApp);
-      vcGoogleProvider = new GoogleAuthProvider();
-
-      // Auth state
-      onAuthStateChanged(vcAuth, (user) => {
-        if (user) {
-          vcMyId = user.uid;
-          vcMyEmail = user.email;
-          document.getElementById('vc-auth-section').style.display = 'none';
-          document.getElementById('vc-main-section').style.display = 'block';
-          vcSetStatus('Signed in as ' + vcMyEmail);
-          vcJoinChannel(vcCurrentChannel);
-        } else {
-          vcMyId = null;
-          vcMyEmail = null;
-          document.getElementById('vc-auth-section').style.display = 'block';
-          document.getElementById('vc-main-section').style.display = 'none';
-          vcSetStatus('Please sign in to use VC');
-          vcLeaveRoom();
-        }
-      });
-
-      document.getElementById('vc-signin-btn').onclick = () => {
-        signInWithPopup(vcAuth, vcGoogleProvider).catch(e => vcSetStatus('Sign-in failed: ' + e.message));
-      };
-      document.getElementById('vc-leave-btn').onclick = () => vcLeaveRoom();
-      document.getElementById('vc-mute-btn').onclick = () => {
-        vcIsMuted = !vcIsMuted;
-        document.getElementById('vc-mute-btn').textContent = vcIsMuted ? 'Unmute' : 'Mute';
-        document.getElementById('vc-mute-btn').style.background = vcIsMuted ? '#f44336' : '#4CAF50';
-        if (vcLocalStream) {
-          vcLocalStream.getAudioTracks().forEach(track => track.enabled = !vcIsMuted);
-        }
-        if (vcMyId && vcCurrentRoomId) {
-          set(ref(vcDb, `rooms/${vcCurrentRoomId}/participants/${vcMyId}/muted`), vcIsMuted);
-        }
-      };
-
-      // Listen for chat channel changes and update VC channel
-      function vcSwitchChannel(newChannel) {
-        if (vcCurrentChannel !== newChannel) {
-          vcCurrentChannel = newChannel;
-          document.getElementById('vc-current-channel').textContent = newChannel;
-          if (vcMyId) vcJoinChannel(newChannel);
-        }
-      }
-
-      // Call vcSwitchChannel whenever chat channel changes
-      // (Assume chat channel changes via loadMessages or similar)
-      const origLoadMessages = window.loadMessages;
-      window.loadMessages = async function(chatName) {
-        vcSwitchChannel(chatName);
-        if (origLoadMessages) return origLoadMessages.apply(this, arguments);
-      };
-
-      // VC room logic
-      async function vcJoinChannel(channelName) {
-        if (!vcMyId) return;
-        // Use channelName as room name
-        // Find or create room
-        const roomsRef = ref(vcDb, 'rooms');
-        const roomsSnap = await get(roomsRef);
-        let roomId = null;
-        if (roomsSnap.exists()) {
-          const rooms = roomsSnap.val();
-          for (const id in rooms) {
-            if (rooms[id].name === channelName) {
-              roomId = id;
-              break;
-            }
-          }
-        }
-        if (!roomId) {
-          // Create room
-          const newRoomRef = push(roomsRef);
-          roomId = newRoomRef.key;
-          await set(newRoomRef, {
-            name: channelName,
-            createdAt: Date.now(),
-            createdBy: vcMyId,
-            password: null,
-          });
-        }
-        vcCurrentRoomId = roomId;
-        document.getElementById('vc-leave-btn').style.display = 'inline-block';
-        await vcStartLocalAudio();
-        await vcJoinRoomParticipants();
-        vcSetStatus('Joined VC channel "' + channelName + '"');
-      }
-
-      function vcLeaveRoom() {
-        if (!vcCurrentRoomId) return;
-        if (vcLocalStream) {
-          vcLocalStream.getTracks().forEach(track => track.stop());
-          vcLocalStream = null;
-        }
-        Object.values(vcPeerConnections).forEach(pc => pc.close());
-        vcPeerConnections = {};
-        if (vcMyId) {
-          remove(ref(vcDb, `rooms/${vcCurrentRoomId}/participants/${vcMyId}`));
-        }
-        document.getElementById('vc-participants').innerHTML = '';
-        document.getElementById('vc-audio-elems').innerHTML = '';
-        document.getElementById('vc-leave-btn').style.display = 'none';
-        vcCurrentRoomId = null;
-        vcSetStatus('Left VC channel');
-      }
-
-      async function vcStartLocalAudio() {
-        try {
-          vcSetStatus('Requesting microphone access...');
-          vcLocalStream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
-          const localAudio = vcCreateAudioElem('local');
-          localAudio.srcObject = vcLocalStream;
-          localAudio.muted = true;
-          return vcLocalStream;
-        } catch (e) {
-          vcSetStatus('Mic error: ' + e.message);
-          throw e;
-        }
-      }
-
-      function vcCreateAudioElem(userId) {
-        const audio = document.createElement('audio');
-        audio.id = 'vc-audio-' + userId;
-        audio.autoplay = true;
-        audio.controls = false;
-        audio.muted = false;
-        document.getElementById('vc-audio-elems').appendChild(audio);
-        return audio;
-      }
-
-      async function vcJoinRoomParticipants() {
-        if (!vcCurrentRoomId || !vcMyId) return;
-        const myParticipantRef = ref(vcDb, `rooms/${vcCurrentRoomId}/participants/${vcMyId}`);
-        const participantsRef = ref(vcDb, `rooms/${vcCurrentRoomId}/participants`);
-        const signalsRef = ref(vcDb, `rooms/${vcCurrentRoomId}/signals`);
-        await set(myParticipantRef, { timestamp: Date.now(), id: vcMyId, email: vcMyEmail, muted: vcIsMuted });
-        window.addEventListener('beforeunload', () => {
-          remove(myParticipantRef);
-        });
-        vcAddParticipantToUI({ id: vcMyId, email: vcMyEmail, muted: vcIsMuted });
-        onChildAdded(participantsRef, (snapshot) => {
-          const participant = snapshot.val();
-          if (participant.id !== vcMyId) {
-            vcAddParticipantToUI(participant);
-            vcSetupPeerConnection(participant.id);
-            vcCreateAndSendOffer(participant.id);
-          }
-        });
-        onChildRemoved(participantsRef, (snapshot) => {
-          const participant = snapshot.val();
-          vcRemoveParticipantFromUI(participant.id);
-          if (vcPeerConnections[participant.id]) {
-            vcPeerConnections[participant.id].close();
-            delete vcPeerConnections[participant.id];
-          }
-          const audioEl = document.getElementById('vc-audio-' + participant.id);
-          if (audioEl) audioEl.remove();
-        });
-        onChildAdded(signalsRef, (snapshot) => {
-          const signal = snapshot.val();
-          if (signal.receiver && signal.receiver !== vcMyId) return;
-          if (signal.sender === vcMyId) return;
-          if (signal.type === 'offer') vcHandleOffer(signal);
-          else if (signal.type === 'answer') vcHandleAnswer(signal);
-          else if (signal.type === 'ice') vcHandleIceCandidate(signal);
-        });
-      }
-
-      function vcAddParticipantToUI(participant) {
-        const container = document.getElementById('vc-participants');
-        let el = document.getElementById('vc-participant-' + participant.id);
-        if (!el) {
-          el = document.createElement('div');
-          el.id = 'vc-participant-' + participant.id;
-          el.style.padding = '4px';
-          el.style.marginBottom = '2px';
-          el.style.borderRadius = '3px';
-          el.style.background = '#fff';
-          el.style.fontSize = '13px';
-          el.innerHTML = `<span class="material-icons" style="font-size:15px;vertical-align:middle;">${participant.muted ? 'mic_off' : 'mic'}</span> ${participant.email}`;
-          container.appendChild(el);
-        }
-      }
-      function vcRemoveParticipantFromUI(id) {
-        const el = document.getElementById('vc-participant-' + id);
-        if (el) el.remove();
-      }
-
-      function vcSetupPeerConnection(participantId) {
-        if (vcPeerConnections[participantId]) {
-          vcPeerConnections[participantId].close();
-        }
-        const rtcConfig = {
-          iceServers: [
-            { urls: "stun:stun.l.google.com:19302" },
-            { urls: "stun:stun1.l.google.com:19302" },
-            { urls: "turn:numb.viagenie.ca", username: "webrtc@live.com", credential: "muazkh" },
-          ],
-          iceCandidatePoolSize: 10,
+        // Firebase config (from vcTEST.js)
+        const firebaseConfig = {
+          apiKey: "AIzaSyDxEnp1678f73t0QPCr8dfP00vI_emKqa8",
+          authDomain: "testing-7d972.firebaseapp.com",
+          databaseURL: "https://testing-7d972-default-rtdb.firebaseio.com",
+          projectId: "testing-7d972",
+          storageBucket: "testing-7d972.appspot.com",
+          messagingSenderId: "327875935397",
+          appId: "1:327875935397:web:13e6a090b0229da791e14c",
         };
-        const pc = new RTCPeerConnection(rtcConfig);
-        vcPeerConnections[participantId] = pc;
-        if (vcLocalStream) {
-          vcLocalStream.getTracks().forEach(track => pc.addTrack(track, vcLocalStream));
-        }
-        pc.onicecandidate = (event) => {
-          if (event.candidate) {
-            push(ref(vcDb, `rooms/${vcCurrentRoomId}/signals`), {
-              type: 'ice', sender: vcMyId, receiver: participantId, candidate: event.candidate.toJSON(), timestamp: Date.now()
-            });
-          }
-        };
-        pc.ontrack = (event) => {
-          const remoteStream = event.streams[0];
-          let remoteAudio = document.getElementById('vc-audio-' + participantId);
-          if (!remoteAudio) remoteAudio = vcCreateAudioElem(participantId);
-          remoteAudio.srcObject = remoteStream;
-          remoteAudio.play().catch(() => {});
-        };
-        return pc;
-      }
 
-      async function vcCreateAndSendOffer(participantId) {
-        const pc = vcPeerConnections[participantId];
-        if (!pc) return;
-        const offer = await pc.createOffer({ offerToReceiveAudio: true });
-        await pc.setLocalDescription(offer);
-        push(ref(vcDb, `rooms/${vcCurrentRoomId}/signals`), {
-          type: 'offer', sender: vcMyId, receiver: participantId, sdp: pc.localDescription.toJSON(), timestamp: Date.now()
-        });
-      }
-      async function vcHandleOffer(signal) {
-        const senderId = signal.sender;
-        let pc = vcPeerConnections[senderId];
-        if (!pc) pc = vcSetupPeerConnection(senderId);
-        await pc.setRemoteDescription(new RTCSessionDescription(signal.sdp));
-        const answer = await pc.createAnswer();
-        await pc.setLocalDescription(answer);
-        push(ref(vcDb, `rooms/${vcCurrentRoomId}/signals`), {
-          type: 'answer', sender: vcMyId, receiver: senderId, sdp: pc.localDescription.toJSON(), timestamp: Date.now()
-        });
-      }
-      async function vcHandleAnswer(signal) {
-        const senderId = signal.sender;
-        const pc = vcPeerConnections[senderId];
-        if (!pc) return;
-        await pc.setRemoteDescription(new RTCSessionDescription(signal.sdp));
-      }
-      async function vcHandleIceCandidate(signal) {
-        const senderId = signal.sender;
-        const pc = vcPeerConnections[senderId];
-        if (!pc) return;
-        await pc.addIceCandidate(new RTCIceCandidate(signal.candidate));
-      }
+        // VC state
+        let vcApp, vcDb, vcAuth, vcGoogleProvider;
+        let vcMyId = null;
+        let vcMyEmail = null;
+        let vcLocalStream = null;
+        let vcIsMuted = false;
+        let vcPeerConnections = {};
+        let vcCurrentChannel = 'General';
+        let vcCurrentRoomId = null;
+        let vcRoomListListener = null;
+
+        // Helper
+        function vcLog(msg) { console.log('[VC]', msg); }
+        function vcSetStatus(msg) { document.getElementById('vc-status').textContent = msg; }
+
+        // Load Firebase modules
+        const { initializeApp } = await import("https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js");
+        const { getDatabase, ref, push, onChildAdded, onChildRemoved, set, remove, onValue, get, update } = await import("https://www.gstatic.com/firebasejs/11.0.2/firebase-database.js");
+        const { getAuth, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged } = await import("https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js");
+
+        vcApp = initializeApp(firebaseConfig);
+        vcDb = getDatabase(vcApp);
+        vcAuth = getAuth(vcApp);
+        vcGoogleProvider = new GoogleAuthProvider();
+
+        // ...existing VC logic...
+        // (Paste all VC logic here, unchanged)
+        // ...
+      })();
     } catch (vcError) {
       console.error('[VC] Initialization error:', vcError);
       // VC errors are isolated
