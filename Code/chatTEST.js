@@ -23,7 +23,7 @@
   const email = auth.currentUser.email;
   function sleep(ms) {
     return new Promise((resolve) => setTimeout(resolve, ms));
-  }
+// ...existing code...
   async function isWeekend(){
     const dayOfWeek = new Date().getDay();
     return dayOfWeek === 0 || dayOfWeek === 6;
@@ -390,59 +390,55 @@
 
       return findFirstUnreadMessage();
     }
+  }
 
-    try {
-      const firstUnreadMessage = await findFirstUnreadMessage();
-      if (firstUnreadMessage) {
-        const targetPosition =
-          firstUnreadMessage.offsetTop - messagesDiv.clientHeight / 3;
+  const firstUnreadMessage = await findFirstUnreadMessage();
+  if (firstUnreadMessage) {
+    const targetPosition =
+      firstUnreadMessage.offsetTop - messagesDiv.clientHeight / 3;
 
-        if (messagesDiv.scrollTop <= 5 && targetPosition > 5) {
-          messagesDiv.scrollTop = 0;
-          await new Promise((resolve) => setTimeout(resolve, 100));
-
-          await smoothScrollTo(messagesDiv, targetPosition);
-        } else {
-          await smoothScrollTo(messagesDiv, targetPosition);
-        }
-      }
-    } catch (error) {
-      console.error("Error scrolling to first unread:", error);
-    }
-
-    function smoothScrollTo(element, targetPosition) {
-      return new Promise((resolve) => {
-        const startPosition = element.scrollTop;
-        const distance = targetPosition - startPosition;
-
-        if (Math.abs(distance) < 5) {
-          element.scrollTop = targetPosition;
-          resolve();
-          return;
-        }
-
-        const duration = 500;
-        let start = null;
-
-        function animation(currentTime) {
-          if (!start) start = currentTime;
-          const progress = (currentTime - start) / duration;
-
-          if (progress < 1) {
-            const ease = (t) => (t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t);
-            const currentPosition = startPosition + distance * ease(progress);
-            element.scrollTop = currentPosition;
-            window.requestAnimationFrame(animation);
-          } else {
-            element.scrollTop = targetPosition;
-            resolve();
-          }
-        }
-
-        window.requestAnimationFrame(animation);
-      });
+    if (messagesDiv.scrollTop <= 5 && targetPosition > 5) {
+      messagesDiv.scrollTop = 0;
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      await smoothScrollTo(messagesDiv, targetPosition);
+    } else {
+      await smoothScrollTo(messagesDiv, targetPosition);
     }
   }
+// ...existing code...
+
+function smoothScrollTo(element, targetPosition) {
+  return new Promise((resolve) => {
+    const startPosition = element.scrollTop;
+    const distance = targetPosition - startPosition;
+
+    if (Math.abs(distance) < 5) {
+      element.scrollTop = targetPosition;
+      resolve();
+      return;
+    }
+
+    const duration = 500;
+    let start = null;
+
+    function animation(currentTime) {
+      if (!start) start = currentTime;
+      const progress = (currentTime - start) / duration;
+
+      if (progress < 1) {
+        const ease = (t) => (t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t);
+        const currentPosition = startPosition + distance * ease(progress);
+        element.scrollTop = currentPosition;
+        window.requestAnimationFrame(animation);
+      } else {
+        element.scrollTop = targetPosition;
+        resolve();
+      }
+    }
+
+    window.requestAnimationFrame(animation);
+  });
+}
   async function updateFavicon() {
     const currentUrl = window.location.href;
     const hasUnreadMessages = !readAll;
@@ -16578,4 +16574,4 @@ Make sure to follow all the instructions while answering questions.
   const messagesDiv = document.getElementById("messages");
   messagesDiv.scrollTop = messagesDiv.scrollHeight;
   updateModifyButtonVisibility();
-})();
+// ...existing code...
