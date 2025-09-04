@@ -1,4 +1,5 @@
 (async function () {
+  window.alert("Loading Yap Window Fork LoginTEST.js");
   if (document.getElementById("bookmarklet-gui")) {
     const gui = document.getElementById("bookmarklet-gui");
     gui.style.opacity = "1";

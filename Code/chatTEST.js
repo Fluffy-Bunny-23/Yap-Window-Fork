@@ -1,4 +1,5 @@
 (async function () {
+  window.alert("Loading Yap Window Fork LoginTEST.js");
   var dayOff = false
   var readMessages = {};
   var readAll = true;
