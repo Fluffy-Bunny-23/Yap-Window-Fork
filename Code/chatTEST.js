@@ -16,11 +16,16 @@
     TIGGY: "[Tiggy]",
     TIGGYBOT: "[Tiggy Bot]",
     JIMMY: "[Jimmy Bot]",
+    SHELL: "[Shell]"
   };
   const users = {};
   const email = auth.currentUser.email;
   function sleep(ms) {
     return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+  async function isWeekend(){
+    const dayOfWeek = new Date().getDay();
+    return dayOfWeek === 0 || dayOfWeek === 6;
   }
   if (!auth.currentUser || !auth.currentUser.emailVerified) {
     alert("Please verify your email before using chat.");
@@ -13326,7 +13331,7 @@ Make sure to follow all the instructions while answering questions.
             const pushMessage = async (text) => {
               const msgRef = push(messagesRef);
               await update(msgRef, {
-          User: "[Snake Game]",
+          User: BOT_USERS.SNAKE,
           Message: text,
           Date: Date.now(),
               });
@@ -13347,13 +13352,13 @@ Make sure to follow all the instructions while answering questions.
             console.error("Error retrieving leaderboard:", error);
             const errorMessageRef = push(messagesRef);
             await update(errorMessageRef, {
-              User: "[Snake Game]",
+              User: BOT_USERS.SNAKE,
               Message: "Error retrieving leaderboard. Please try again later.",
               Date: Date.now(),
             });
           }
         } else {
-          if (typeof dayOff !== "undefined" && dayOff === true) {
+          if (dayOff === true) {
             createSnakeGame();
           } else {
             const now = new Date();
@@ -13376,9 +13381,9 @@ Make sure to follow all the instructions while answering questions.
             ) {
               const errorMessageRef = push(messagesRef);
               await update(errorMessageRef, {
-          User: "[Snake Game]",
-          Message: "No Gaming During School!",
-          Date: Date.now(),
+                User: BOT_USERS.SNAKE,
+                Message: "No Gaming During School!",
+                Date: Date.now(),
               });
             } else {
               createSnakeGame();
@@ -14711,7 +14716,7 @@ Make sure to follow all the instructions while answering questions.
         if (serverName !== "Shell" && serverName !== "Bot Commands"){
           const errorMessageRef = push(messagesRef);
           await update(errorMessageRef, {
-            User: "[Shell]",
+            User: BOT_USERS.SHELL,
             Message: "Shell can only be used in \"Shell\" and \"Bot Commands\" channels!",
             Date: Date.now()
           });
@@ -14735,7 +14740,7 @@ Make sure to follow all the instructions while answering questions.
           if (banned) {
             const bannedMessageRef = push(messagesRef);
             await update(bannedMessageRef, {
-              User: "[SHELL]",
+              User: BOT_USERS.SHELL,
               Message:
                 "Use /shell help to display help\n\nYou have been banned. Please contact Winston for help.",
               Date: Date.now(),
@@ -14752,7 +14757,7 @@ Make sure to follow all the instructions while answering questions.
             ) {
               const goodMessageRef = push(messagesRef);
               await update(goodMessageRef, {
-                User: "[SHELL]",
+                User: BOT_USERS.SHELL,
                 Message: "Correct Sudo Password",
                 Date: Date.now(),
               });
@@ -14760,7 +14765,7 @@ Make sure to follow all the instructions while answering questions.
             } else {
               const badMessageRef = push(messagesRef);
               await update(badMessageRef, {
-                User: "[SHELL]",
+                User: BOT_USERS.SHELL,
                 Message: "Incorrect Sudo Password",
                 Date: Date.now(),
               });
@@ -14771,7 +14776,7 @@ Make sure to follow all the instructions while answering questions.
           if (command.trim().startsWith("sudo") && useSudo === false) {
             const nothingMessageRef = push(messagesRef);
             await update(nothingMessageRef, {
-              User: "[SHELL]",
+              User: BOT_USERS.SHELL,
               Message: "No command executed",
               Date: Date.now(),
             });
@@ -14783,7 +14788,7 @@ Make sure to follow all the instructions while answering questions.
 
             const responseMessageRef = push(messagesRef);
             await update(responseMessageRef, {
-              User: "[SHELL]",
+              User: BOT_USERS.SHELL,
               Message: `Use /shell help to display help\n\n${response}`,
               Date: Date.now(),
             });
