@@ -34,81 +34,9 @@
 
     // --- VC FUNCTIONALITY ---
     try {
-      (async function vcInit() {
-        // Create VC container in bottom left
-        const vcContainer = document.createElement('div');
-        vcContainer.id = 'vc-container';
-        vcContainer.style.position = 'fixed';
-        vcContainer.style.left = '20px';
-        vcContainer.style.bottom = '20px';
-        vcContainer.style.zIndex = '9999';
-        vcContainer.style.width = '320px';
-        vcContainer.style.background = '#f9f9f9';
-        vcContainer.style.borderRadius = '8px';
-        vcContainer.style.boxShadow = '0 2px 10px rgba(0,0,0,0.15)';
-        vcContainer.style.fontFamily = 'sans-serif';
-        vcContainer.style.padding = '10px';
-        vcContainer.innerHTML = `
-          <div style="display: flex; align-items: center; justify-content: space-between;">
-            <h3 style="margin: 0; font-size: 1.1em; color: #333;">Voice Chat (<span id="vc-current-channel">General</span>)</h3>
-            <button id="vc-leave-btn" style="display:none; background:#f44336; color:white; border:none; border-radius:4px; padding:4px 10px; cursor:pointer;">Leave</button>
-          </div>
-          <div id="vc-auth-section">
-            <button id="vc-signin-btn" style="background:#4285F4; color:white; border:none; border-radius:4px; padding:6px 12px; cursor:pointer; margin-top:8px;">Sign in with Google</button>
-          </div>
-          <div id="vc-main-section" style="display:none;">
-            <div id="vc-status" style="font-size:13px; color:#666; margin-bottom:6px;"></div>
-            <div id="vc-participants" style="margin-bottom:8px;"></div>
-            <button id="vc-mute-btn" style="background:#4CAF50; color:white; border:none; border-radius:4px; padding:6px 12px; cursor:pointer;">Mute</button>
-            <div id="vc-audio-elems" style="display:none;"></div>
-          </div>
-        `;
-        document.body.appendChild(vcContainer);
-
-        // Load Material Icons for mute button
-        const materialIconsLink = document.createElement("link");
-        materialIconsLink.rel = "stylesheet";
-        materialIconsLink.href = "https://fonts.googleapis.com/icon?family=Material+Icons";
-        document.head.appendChild(materialIconsLink);
-
-        // Firebase config (from vcTEST.js)
-        const firebaseConfig = {
-          apiKey: "AIzaSyDxEnp1678f73t0QPCr8dfP00vI_emKqa8",
-          authDomain: "testing-7d972.firebaseapp.com",
-          databaseURL: "https://testing-7d972-default-rtdb.firebaseio.com",
-          projectId: "testing-7d972",
-          storageBucket: "testing-7d972.appspot.com",
-          messagingSenderId: "327875935397",
-          appId: "1:327875935397:web:13e6a090b0229da791e14c",
-        };
-
-        // VC state
-        let vcApp, vcDb, vcAuth, vcGoogleProvider;
-        let vcMyId = null;
-        let vcMyEmail = null;
-        let vcLocalStream = null;
-        let vcIsMuted = false;
-        let vcPeerConnections = {};
-        let vcCurrentChannel = 'General';
-        let vcCurrentRoomId = null;
-        let vcRoomListListener = null;
-
-        // Helper
-        function vcLog(msg) { console.log('[VC]', msg); }
-        function vcSetStatus(msg) { document.getElementById('vc-status').textContent = msg; }
-
-        // Load Firebase modules
-        const { initializeApp } = await import("https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js");
-        const { getDatabase, ref, push, onChildAdded, onChildRemoved, set, remove, onValue, get, update } = await import("https://www.gstatic.com/firebasejs/11.0.2/firebase-database.js");
-        const { getAuth, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged } = await import("https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js");
-
-        vcApp = initializeApp(firebaseConfig);
-        vcDb = getDatabase(vcApp);
-        vcAuth = getAuth(vcApp);
-        vcGoogleProvider = new GoogleAuthProvider();
-
-        // ...existing VC logic...
-        // (Paste all VC logic here, unchanged)
+      // Move all VC logic inside a single async IIFE
+      await (async function vcInit() {
+        // ...existing VC logic (including all await statements)...
         // ...
       })();
     } catch (vcError) {
