@@ -1,4 +1,5 @@
 (async function () {
+  console.log("Chat script loaded");
   var dayOff = false
   var readMessages = {};
   var readAll = true;
