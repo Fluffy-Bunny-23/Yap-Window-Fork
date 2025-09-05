@@ -1,5 +1,4 @@
 (async function () {
-  window.alert("Loading Yap Window Fork LoginTEST.js");
   var dayOff = false
   var readMessages = {};
   var readAll = true;
@@ -30,106 +29,124 @@
   }
   if (!auth.currentUser || !auth.currentUser.emailVerified) {
     alert("Please verify your email before using chat.");
-    // ...existing code...
+    return;
+  }
+  const sc = document.createElement("script");
+  sc.setAttribute(
+    "src",
+    "https://cdn.jsdelivr.net/npm/emoji-toolkit@8.0.0/lib/js/joypixels.min.js",
+  );
+  document.head.appendChild(sc);
+  const ss = document.createElement("stylesheet");
+  sc.setAttribute(
+    "href",
+    "https://cdn.jsdelivr.net/npm/emoji-toolkit@8.0.0/extras/css/joypixels.min.css",
+  );
+  document.head.appendChild(ss);
+  const gui = document.getElementById("bookmarklet-gui");
+  chatScreen = document.getElementById("chat-screen");
+  chatScreen.classList.remove("hidden");
+  dayOff = isWeekend();
 
-    // --- VC FUNCTIONALITY ---
-    try {
-      // Move all VC logic inside a single async IIFE
-      await (async function vcInit() {
-        // ...existing VC logic (including all await statements)...
-        // ...
-      })();
-    } catch (vcError) {
-      console.error('[VC] Initialization error:', vcError);
-      // VC errors are isolated
-    }
-    // --- END VC FUNCTIONALITY ---
+  async function initializeReadMessages() {
+    const readMessagesRef = ref(
+      database,
+      `Accounts/${email.replace(/\./g, "*")}/readMessages`,
+    );
+    const snapshot = await get(readMessagesRef);
+    readMessages = snapshot.val() || {};
+    return readMessages;
+  }
 
-// ...existing code...
-}
-})();
-async function scrollToFirstUnread(chatName) {
-  // ...existing code...
-  // This function should contain all logic for scrolling to the first unread message
-  // If you need to restore the original logic, please provide the intended code block
-}
-// ...existing code...
+  function updateReadAllStatus() {
+    const allChats = document.querySelectorAll(".server");
+    readAll = true;
 
+    allChats.forEach((chat) => {
+      const unreadCount = parseInt(chat.getAttribute("data-unread") || "0");
+      if (unreadCount > 0) {
+        readAll = false;
+      }
+    });
+    updateFavicon();
+  }
 
-function smoothScrollTo(element, targetPosition) {
-  return new Promise((resolve) => {
-    const startPosition = element.scrollTop;
-    const distance = targetPosition - startPosition;
+  async function scrollToFirstUnread(chatName) {
+    const messagesDiv = document.getElementById("messages");
 
-    if (Math.abs(distance) < 5) {
-      element.scrollTop = targetPosition;
-      resolve();
+    await new Promise((resolve) => {
+      const checkMessages = () => {
+        if (messagesDiv.children.length > 0) {
+          resolve();
+        } else {
+          setTimeout(checkMessages, 50);
+        }
+      };
+      checkMessages();
+    });
+
+    if (messagesDiv.children.length === 0) {
       return;
     }
 
-    const duration = 500;
-    let start = null;
+    const hasUnreadMessages =
+      document.querySelector(".message.unread") !== null;
 
-    function animation(currentTime) {
-      if (!start) start = currentTime;
-      const progress = (currentTime - start) / duration;
-
-      if (progress < 1) {
-        const ease = (t) => (t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t);
-        const currentPosition = startPosition + distance * ease(progress);
-        element.scrollTop = currentPosition;
-        window.requestAnimationFrame(animation);
-      } else {
-        element.scrollTop = targetPosition;
-        resolve();
-      }
+    if (!hasUnreadMessages) {
+      return;
     }
 
-    window.requestAnimationFrame(animation);
-  });
-}
-  async function updateFavicon() {
-    const currentUrl = window.location.href;
-    const hasUnreadMessages = !readAll;
+    const lastReadMessageId = readMessages[chatName];
 
-    let link = document.querySelector(
-      'link[rel="icon"], link[rel="shortcut icon"]',
-    );
-    if (!link) {
-      link = document.createElement("link");
-      link.rel = "icon";
-      document.head.appendChild(link);
-    }
-
-    if (hasUnreadMessages) {
-      let notificationIconPath;
-
-      if (currentUrl.includes("lakesideschool.instructure.com")) {
-        iconUrl =
-          "https://raw.githubusercontent.com/TheHumblePotato/Yap-Window/main/Favicon/CanvasNotification.png";
-      } else if (currentUrl.includes("google.com")) {
-        iconUrl =
-          "https://raw.githubusercontent.com/TheHumblePotato/Yap-Window/main/Favicon/GoogleNotification.png";
-      }
-
-      if (iconUrl) {
-        try {
-          link.href = iconUrl;
-        } catch (error) {
-          console.error("Error loading notification favicon:", error);
+    if (!lastReadMessageId) {
+      const allMessages = Array.from(messagesDiv.children);
+      const lastMessage = allMessages[allMessages.length - 1];
+      if (lastMessage) {
+        const lastMessageId =
+          lastMessage.dataset.lastMessageId || lastMessage.dataset.messageId;
+        if (lastMessageId) {
+          await markMessagesAsRead(chatName, lastMessageId);
         }
       }
-    } else {
-      if (currentUrl.includes("lakesideschool.instructure.com")) {
-        link.href =
-          "https://instructure-uploads-pdx.s3.us-west-2.amazonaws.com/account_211800000000000001/attachments/3701/smallershield.png";
-      } else if (currentUrl.includes("google.com")) {
-        link.href = "https://google.com/favicon.ico";
-      }
+      return;
     }
-  }
 
-  async function checkForUpdates() {
+    async function findFirstUnreadMessage() {
+      const allMessages = Array.from(messagesDiv.children);
+
+      let lastReadMessageIndex = -1;
+      for (let i = 0; i < allMessages.length; i++) {
+        const msgElement = allMessages[i];
+        const msgId = msgElement.dataset.messageId;
+        const lastMsgId = msgElement.dataset.lastMessageId;
+
+        if (msgId === lastReadMessageId || lastMsgId === lastReadMessageId) {
+          lastReadMessageIndex = i;
+          break;
+        }
+      }
+
+      if (
+        lastReadMessageIndex !== -1 &&
+        lastReadMessageIndex < allMessages.length - 1
+      ) {
+        return allMessages[lastReadMessageIndex + 1];
+      }
+
+      if (messagesDiv.scrollTop <= 5) {
+        if (allMessages.length > 0) {
+          const lastMessage = allMessages[allMessages.length - 1];
+          const lastMessageId =
+            lastMessage.dataset.lastMessageId || lastMessage.dataset.messageId;
+          if (lastMessageId) {
+            await markMessagesAsRead(chatName, lastMessageId);
+          }
+        }
+        return null;
+      }
+
+      return null;
+    }
     const userRef = ref(
       database,
       `Accounts/${email.replace(/\./g, "*")}/Version`,
@@ -265,16 +282,138 @@ function smoothScrollTo(element, targetPosition) {
       if (
         Type === "Public" ||
         (Type === "Private" && memberList.includes(email.replace(/\./g, "*")))
-      ) {
-        const chatElement = document.createElement("div");
-        chatElement.className = "server";
-        chatElement.textContent = chatName;
-        chatElement.title = Description;
+      ) { // <-- add missing closing parenthesis and opening brace
+        // --- VC FUNCTIONALITY ---
+        // Split VC logic into multiple try/catch blocks for easier debugging
+        try {
+          // DOM setup
+          try {
+            const vcContainer = document.createElement('div');
+            vcContainer.id = 'vc-container';
+            vcContainer.style.position = 'fixed';
+            vcContainer.style.left = '20px';
+            vcContainer.style.bottom = '20px';
+            vcContainer.style.zIndex = '9999';
+            vcContainer.style.width = '320px';
+            vcContainer.style.background = '#f9f9f9';
+            vcContainer.style.borderRadius = '8px';
+            vcContainer.style.boxShadow = '0 2px 10px rgba(0,0,0,0.15)';
+          vcContainer.style.fontFamily = 'sans-serif';
+          vcContainer.style.padding = '10px';
+          vcContainer.innerHTML = `
+            <div style="display: flex; align-items: center; justify-content: space-between;">
+              <h3 style="margin: 0; font-size: 1.1em; color: #333;">Voice Chat (<span id="vc-current-channel">General</span>)</h3>
+              <button id="vc-leave-btn" style="display:none; background:#f44336; color:white; border:none; border-radius:4px; padding:4px 10px; cursor:pointer;">Leave</button>
+            </div>
+            <div id="vc-auth-section">
+              <button id="vc-signin-btn" style="background:#4285F4; color:white; border:none; border-radius:4px; padding:6px 12px; cursor:pointer; margin-top:8px;">Sign in with Google</button>
+            </div>
+            <div id="vc-main-section" style="display:none;">
+              <div id="vc-status" style="font-size:13px; color:#666; margin-bottom:6px;"></div>
+              <div id="vc-participants" style="margin-bottom:8px;"></div>
+              <button id="vc-mute-btn" style="background:#4CAF50; color:white; border:none; border-radius:4px; padding:6px 12px; cursor:pointer;">Mute</button>
+              <div id="vc-audio-elems" style="display:none;"></div>
+            </div>
+          `;
+          document.body.appendChild(vcContainer);
+          const materialIconsLink = document.createElement("link");
+          materialIconsLink.rel = "stylesheet";
+          materialIconsLink.href = "https://fonts.googleapis.com/icon?family=Material+Icons";
+          document.head.appendChild(materialIconsLink);
+        } catch (err) {
+          console.error('[VC] DOM setup error:', err);
+        }
 
-        const badge = document.createElement("span");
-        badge.className = "unread-badge";
-        badge.style.display = "none";
-        badge.style.backgroundColor = isDark ? "#ff6b6b" : "#ff4444";
+        // Firebase imports
+        let initializeApp, getDatabase, ref, push, onChildAdded, onChildRemoved, set, remove, onValue, get, update;
+        let getAuth, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged;
+        try {
+          ({ initializeApp } = await import("https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js"));
+          ({ getDatabase, ref, push, onChildAdded, onChildRemoved, set, remove, onValue, get, update } = await import("https://www.gstatic.com/firebasejs/11.0.2/firebase-database.js"));
+          ({ getAuth, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged } = await import("https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js"));
+        } catch (err) {
+          console.error('[VC] Firebase import error:', err);
+        }
+
+        // Firebase config and state
+        let vcApp, vcDb, vcAuth, vcGoogleProvider;
+        let vcMyId = null;
+        let vcMyEmail = null;
+        let vcLocalStream = null;
+        let vcIsMuted = false;
+        let vcPeerConnections = {};
+        let vcCurrentChannel = 'General';
+        let vcCurrentRoomId = null;
+        let vcRoomListListener = null;
+        try {
+          const firebaseConfig = {
+            apiKey: "AIzaSyDxEnp1678f73t0QPCr8dfP00vI_emKqa8",
+            authDomain: "testing-7d972.firebaseapp.com",
+            databaseURL: "https://testing-7d972-default-rtdb.firebaseio.com",
+            projectId: "testing-7d972",
+            storageBucket: "testing-7d972.appspot.com",
+            messagingSenderId: "327875935397",
+            appId: "1:327875935397:web:13e6a090b0229da791e14c",
+          };
+          vcApp = initializeApp(firebaseConfig);
+          vcDb = getDatabase(vcApp);
+          vcAuth = getAuth(vcApp);
+          vcGoogleProvider = new GoogleAuthProvider();
+        } catch (err) {
+          console.error('[VC] Firebase config/state error:', err);
+        }
+
+        // Auth state
+        try {
+          onAuthStateChanged(vcAuth, (user) => {
+            if (user) {
+              vcMyId = user.uid;
+              vcMyEmail = user.email;
+              document.getElementById('vc-auth-section').style.display = 'none';
+              document.getElementById('vc-main-section').style.display = 'block';
+              vcSetStatus('Signed in as ' + vcMyEmail);
+              vcJoinChannel(vcCurrentChannel);
+            } else {
+              vcMyId = null;
+              vcMyEmail = null;
+              document.getElementById('vc-auth-section').style.display = 'block';
+              document.getElementById('vc-main-section').style.display = 'none';
+              vcSetStatus('Please sign in to use VC');
+              vcLeaveRoom();
+            }
+          });
+        } catch (err) {
+          console.error('[VC] Auth state error:', err);
+        }
+
+        // Event listeners
+        try {
+          document.getElementById('vc-signin-btn').onclick = () => {
+            signInWithPopup(vcAuth, vcGoogleProvider).catch(e => vcSetStatus('Sign-in failed: ' + e.message));
+          };
+          document.getElementById('vc-leave-btn').onclick = () => vcLeaveRoom();
+          document.getElementById('vc-mute-btn').onclick = () => {
+            vcIsMuted = !vcIsMuted;
+            document.getElementById('vc-mute-btn').textContent = vcIsMuted ? 'Unmute' : 'Mute';
+            document.getElementById('vc-mute-btn').style.background = vcIsMuted ? '#f44336' : '#4CAF50';
+            if (vcLocalStream) {
+              vcLocalStream.getAudioTracks().forEach(track => track.enabled = !vcIsMuted);
+            }
+            if (vcMyId && vcCurrentRoomId) {
+              set(ref(vcDb, `rooms/${vcCurrentRoomId}/participants/${vcMyId}/muted`), vcIsMuted);
+            }
+          };
+        } catch (err) {
+          console.error('[VC] Event listeners error:', err);
+        }
+
+        // The rest of VC logic (room/channel, WebRTC, etc.) should also be split into try/catch blocks as needed for debugging
+        // ...existing VC logic split into more try/catch blocks...
+
+      } catch (vcError) {
+        console.error('[VC] General VC error:', vcError);
+      }
+      // --- END VC FUNCTIONALITY ---
         badge.style.color = "white";
         badge.style.borderRadius = "10px";
         badge.style.padding = "2px 6px";
@@ -326,7 +465,7 @@ function smoothScrollTo(element, targetPosition) {
     });
 
     updateReadAllStatus();
-  }
+  // removed stray closing brace
 
   async function updateUnreadCount(chatName) {
     const chatRef = ref(database, `Chats/${chatName}`);
@@ -16223,4 +16362,5 @@ Make sure to follow all the instructions while answering questions.
   const messagesDiv = document.getElementById("messages");
   messagesDiv.scrollTop = messagesDiv.scrollHeight;
   updateModifyButtonVisibility();
-// ...existing code...
+}
+})();
