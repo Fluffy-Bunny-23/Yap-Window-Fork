@@ -28,6 +28,52 @@
     const dayOfWeek = new Date().getDay();
     return dayOfWeek === 0 || dayOfWeek === 6;
   }
+  // Logging and safe-run helpers
+  function safeRun(name, fn) {
+    try {
+      console.log(`[START] ${name}`);
+      const res = fn();
+      if (res && typeof res.then === "function") {
+        return res
+          .then((r) => {
+            console.log(`[SUCCESS] ${name}`);
+            return r;
+          })
+          .catch((e) => {
+            console.error(`[ERROR] ${name}`, e);
+            throw e;
+          });
+      }
+      console.log(`[SUCCESS] ${name}`);
+      return res;
+    } catch (e) {
+      console.error(`[ERROR] ${name}`, e);
+      throw e;
+    }
+  }
+
+  function safeRunNoThrow(name, fn) {
+    try {
+      console.log(`[START] ${name}`);
+      const res = fn();
+      if (res && typeof res.then === "function") {
+        return res
+          .then((r) => {
+            console.log(`[SUCCESS] ${name}`);
+            return r;
+          })
+          .catch((e) => {
+            console.error(`[ERROR] ${name}`, e);
+            return null;
+          });
+      }
+      console.log(`[SUCCESS] ${name}`);
+      return res;
+    } catch (e) {
+      console.error(`[ERROR] ${name}`, e);
+      return null;
+    }
+  }
   if (!auth.currentUser || !auth.currentUser.emailVerified) {
     alert("Please verify your email before using chat.");
     return;
@@ -16352,16 +16398,18 @@ Make sure to follow all the instructions while answering questions.
   }
 
 
-  checkForUpdates();
-  setupGlobalFileViewer();
-  fetchChatList();
-  setupUnreadCountUpdates();
-  await initializeReadMessages();
-  loadMessages("General");
-  setupInteractionTracking(document.getElementById("bookmarklet-gui"));
-  initializeUserActivitySidebar();
-  const messagesDiv = document.getElementById("messages");
-  messagesDiv.scrollTop = messagesDiv.scrollHeight;
-  updateModifyButtonVisibility();
+  await safeRunNoThrow("checkForUpdates", async () => await checkForUpdates());
+  safeRunNoThrow("setupGlobalFileViewer", () => setupGlobalFileViewer());
+  await safeRunNoThrow("fetchChatList", async () => await fetchChatList());
+  safeRunNoThrow("setupUnreadCountUpdates", () => setupUnreadCountUpdates());
+  await safeRunNoThrow("initializeReadMessages", async () => await initializeReadMessages());
+  await safeRunNoThrow("loadMessages General", async () => await loadMessages("General"));
+  safeRunNoThrow("setupInteractionTracking", () => setupInteractionTracking(document.getElementById("bookmarklet-gui")));
+  safeRunNoThrow("initializeUserActivitySidebar", () => initializeUserActivitySidebar());
+  safeRunNoThrow("adjustMessagesScroll", () => {
+    const messagesDiv = document.getElementById("messages");
+    if (messagesDiv) messagesDiv.scrollTop = messagesDiv.scrollHeight;
+  });
+  safeRunNoThrow("updateModifyButtonVisibility", () => updateModifyButtonVisibility());
 }
 })();
