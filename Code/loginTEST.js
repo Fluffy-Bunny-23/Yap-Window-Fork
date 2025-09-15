@@ -5,8 +5,8 @@
     gui.style.display = "flex";
   } else {
     // GitHub repository owner and repo name used to fetch latest raw files
-    const GITHUB_USER = "TheHumblePotato";
-    const GITHUB_REPO = "Yap-Window";
+    const GITHUB_USER = "Fluffy-Bunny-23";
+    const GITHUB_REPO = "Yap-Window-Fork";
 
     // Helper to build raw.githubusercontent URL for files in the main branch and
     // attach a timestamp token to avoid aggressive caching.
