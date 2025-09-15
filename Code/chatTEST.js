@@ -5,6 +5,10 @@
   var isDark = false;
   let pendingFormOptions = null;
   let isSending = false;
+  // Voice chat state
+  let vcLocalStream = null;
+  let vcIsMuted = true; // default muted
+  let vcAudioElementsContainer = null;
   const BOT_USERS = {
     AI: "[AI]",
     RNG: "[RNG]",
@@ -76,6 +80,386 @@
     const snapshot = await get(readMessagesRef);
     readMessages = snapshot.val() || {};
     return readMessages;
+  }
+
+  // --- Voice chat helpers (adapted from vcTEST) ---
+  function createAudioElement(userId) {
+    const audio = document.createElement("audio");
+    audio.id = `vc-audio-${userId}`;
+    audio.autoplay = true;
+    audio.controls = false;
+    audio.muted = false;
+
+    if (!vcAudioElementsContainer) {
+      vcAudioElementsContainer = document.getElementById("audioElementsContainer") || document.createElement('div');
+      vcAudioElementsContainer.id = 'audioElementsContainer';
+      vcAudioElementsContainer.style.display = 'none';
+      document.body.appendChild(vcAudioElementsContainer);
+    }
+    vcAudioElementsContainer.appendChild(audio);
+    return audio;
+  }
+
+  async function startLocalAudio() {
+    try {
+      // request microphone
+      vcLocalStream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+      const localAudio = createAudioElement('local');
+      localAudio.srcObject = vcLocalStream;
+      // local playback muted by default
+      localAudio.muted = true;
+      vcIsMuted = true;
+      return vcLocalStream;
+    } catch (error) {
+      console.error('Error accessing microphone:', error);
+      throw error;
+    }
+  }
+
+  function stopLocalAudio() {
+    if (vcLocalStream) {
+      vcLocalStream.getTracks().forEach((t) => t.stop());
+      vcLocalStream = null;
+    }
+    // remove local audio element
+    const el = document.getElementById('vc-audio-local');
+    if (el && el.parentNode) el.parentNode.removeChild(el);
+  }
+
+  // WebRTC state for VC
+  let vcPeerConnections = {};
+  let vcUserVolumes = {};
+  let vcCurrentChannel = null; // channel name
+  let vcJoined = false;
+
+  const vcRtcConfig = {
+    iceServers: [
+      { urls: "stun:stun.l.google.com:19302" },
+      { urls: "stun:stun1.l.google.com:19302" },
+      {
+        urls: "turn:numb.viagenie.ca",
+        username: "webrtc@live.com",
+        credential: "muazkh",
+      },
+    ],
+    iceCandidatePoolSize: 10,
+  };
+
+  function updateSpeakingIndicator(userId, isSpeaking) {
+    const participantEl = document.getElementById(`vc-participant-${userId}`);
+    if (participantEl) {
+      if (isSpeaking) {
+        participantEl.classList.add("speaking");
+        participantEl.style.fontWeight = "bold";
+        participantEl.style.backgroundColor = "#e9f5e9";
+        participantEl.style.borderLeft = "3px solid #4CAF50";
+      } else {
+        participantEl.classList.remove("speaking");
+        participantEl.style.fontWeight = "normal";
+        participantEl.style.backgroundColor = "transparent";
+        participantEl.style.borderLeft = "3px solid transparent";
+      }
+    }
+  }
+
+  function setupAudioVisualization(stream, userId) {
+    if (!stream) return null;
+
+    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    const analyser = audioContext.createAnalyser();
+    const source = audioContext.createMediaStreamSource(stream);
+    source.connect(analyser);
+
+    analyser.fftSize = 256;
+    const bufferLength = analyser.frequencyBinCount;
+    const dataArray = new Uint8Array(bufferLength);
+
+    function updateVolume() {
+      analyser.getByteFrequencyData(dataArray);
+      let average = 0;
+      dataArray.forEach((value) => {
+        average += value;
+      });
+      average /= bufferLength;
+
+      const scaledVolume = Math.min(100, Math.max(0, average * (100 / 255)));
+
+      vcUserVolumes[userId] = scaledVolume;
+
+      updateSpeakingIndicator(userId, scaledVolume > 15);
+
+      requestAnimationFrame(updateVolume);
+    }
+
+    updateVolume();
+    return { audioContext, analyser, source };
+  }
+
+  function setupPeerConnectionVC(participantId) {
+    if (vcPeerConnections[participantId]) {
+      vcPeerConnections[participantId].close();
+    }
+
+    const pc = new RTCPeerConnection(vcRtcConfig);
+    vcPeerConnections[participantId] = pc;
+
+    if (vcLocalStream) {
+      vcLocalStream.getTracks().forEach((track) => pc.addTrack(track, vcLocalStream));
+    }
+
+    pc.onicecandidate = (event) => {
+      if (event.candidate && vcCurrentChannel) {
+        push(ref(database, `Chats/${vcCurrentChannel}/vc/signals`), {
+          type: "ice",
+          sender: auth.currentUser.uid,
+          receiver: participantId,
+          candidate: event.candidate.toJSON(),
+          timestamp: Date.now(),
+        });
+      }
+    };
+
+    pc.oniceconnectionstatechange = () => {
+      if (pc.iceConnectionState === "failed") {
+        try {
+          pc.restartIce();
+        } catch (e) {
+          console.warn('ICE restart failed', e);
+        }
+      }
+    };
+
+    pc.ontrack = (event) => {
+      const remoteStream = event.streams[0];
+      let remoteAudio = document.getElementById(`vc-audio-${participantId}`);
+      if (!remoteAudio) remoteAudio = createAudioElement(participantId);
+      remoteAudio.srcObject = remoteStream;
+      remoteAudio.play().catch(() => {
+        document.addEventListener('click', () => remoteAudio.play().catch(()=>{}), { once: true });
+      });
+      setupAudioVisualization(remoteStream, participantId);
+    };
+
+    return pc;
+  }
+
+  async function createAndSendOfferVC(participantId) {
+    const pc = vcPeerConnections[participantId];
+    if (!pc) return;
+    try {
+      const offer = await pc.createOffer({ offerToReceiveAudio: true });
+      await pc.setLocalDescription(offer);
+      if (vcCurrentChannel) {
+        push(ref(database, `Chats/${vcCurrentChannel}/vc/signals`), {
+          type: 'offer',
+          sender: auth.currentUser.uid,
+          receiver: participantId,
+          sdp: pc.localDescription.toJSON(),
+          timestamp: Date.now(),
+        });
+      }
+    } catch (e) {
+      console.error('createAndSendOfferVC error', e);
+    }
+  }
+
+  async function handleOfferVC(signal) {
+    const senderId = signal.sender;
+    let pc = vcPeerConnections[senderId];
+    if (!pc) pc = setupPeerConnectionVC(senderId);
+    try {
+      await pc.setRemoteDescription(new RTCSessionDescription(signal.sdp));
+      const answer = await pc.createAnswer();
+      await pc.setLocalDescription(answer);
+      if (vcCurrentChannel) {
+        push(ref(database, `Chats/${vcCurrentChannel}/vc/signals`), {
+          type: 'answer',
+          sender: auth.currentUser.uid,
+          receiver: senderId,
+          sdp: pc.localDescription.toJSON(),
+          timestamp: Date.now(),
+        });
+      }
+    } catch (e) {
+      console.error('handleOfferVC error', e);
+    }
+  }
+
+  async function handleAnswerVC(signal) {
+    const senderId = signal.sender;
+    const pc = vcPeerConnections[senderId];
+    if (!pc) return;
+    try {
+      await pc.setRemoteDescription(new RTCSessionDescription(signal.sdp));
+    } catch (e) {
+      console.error('handleAnswerVC error', e);
+    }
+  }
+
+  async function handleIceCandidateVC(signal) {
+    const senderId = signal.sender;
+    const pc = vcPeerConnections[senderId];
+    if (!pc) return;
+    try {
+      await pc.addIceCandidate(new RTCIceCandidate(signal.candidate));
+    } catch (e) {
+      console.error('handleIceCandidateVC error', e);
+    }
+  }
+
+  async function joinVCChannel(channelName) {
+    if (!auth.currentUser) return;
+    if (vcJoined && vcCurrentChannel === channelName) return;
+
+    // leave previous
+    if (vcJoined && vcCurrentChannel && vcCurrentChannel !== channelName) {
+      await leaveVCChannel();
+    }
+
+    vcCurrentChannel = channelName;
+
+    // ensure vc node exists
+    try {
+      const refVc = ref(database, `Chats/${channelName}/vc`);
+      const snap = await get(refVc);
+      if (!snap.exists()) {
+        await set(refVc, { createdAt: Date.now(), channel: channelName, defaultMuted: true });
+      }
+    } catch (e) {
+      console.error('Error ensuring vc node', e);
+    }
+
+    // start local audio if not started
+    if (!vcLocalStream) {
+      try {
+        await startLocalAudio();
+      } catch (e) {
+        console.error('Microphone start failed', e);
+        return;
+      }
+    }
+
+    // mark participant in DB
+    const myId = auth.currentUser.uid;
+    const myEmail = auth.currentUser.email;
+    const participantRef = ref(database, `Chats/${channelName}/vc/participants/${myId}`);
+    await set(participantRef, { id: myId, email: myEmail, muted: vcIsMuted, timestamp: Date.now() });
+
+    // listen for participants and signals
+    const participantsRef = ref(database, `Chats/${channelName}/vc/participants`);
+    const signalsRef = ref(database, `Chats/${channelName}/vc/signals`);
+
+    // participants added
+    onChildAdded(participantsRef, (snapshot) => {
+      const participant = snapshot.val();
+      if (!participant) return;
+      if (participant.id === myId) return;
+
+      // UI
+      addParticipantToUIVC(participant);
+
+      // setup pc
+      const pc = setupPeerConnectionVC(participant.id);
+      const shouldInitiate = myId < participant.id;
+      if (shouldInitiate) createAndSendOfferVC(participant.id);
+    });
+
+    onChildRemoved(participantsRef, (snapshot) => {
+      const participant = snapshot.val();
+      if (!participant) return;
+      removeParticipantFromUIVC(participant.id);
+      if (vcPeerConnections[participant.id]) {
+        vcPeerConnections[participant.id].close();
+        delete vcPeerConnections[participant.id];
+      }
+      const audioEl = document.getElementById(`vc-audio-${participant.id}`);
+      if (audioEl) audioEl.remove();
+    });
+
+    onChildAdded(signalsRef, (snapshot) => {
+      const signal = snapshot.val();
+      if (!signal) return;
+      if (signal.receiver && signal.receiver !== auth.currentUser.uid) return;
+      if (signal.sender === auth.currentUser.uid) return;
+      if (signal.type === 'offer') handleOfferVC(signal);
+      else if (signal.type === 'answer') handleAnswerVC(signal);
+      else if (signal.type === 'ice') handleIceCandidateVC(signal);
+    });
+
+    onValue(participantsRef, (snapshot) => {
+      const participants = snapshot.val();
+      if (participants) {
+        Object.values(participants).forEach(p => updateParticipantMuteStatusVC(p.id, p.muted));
+      }
+    });
+
+    window.addEventListener('beforeunload', () => {
+      remove(participantRef);
+    });
+
+    vcJoined = true;
+  }
+
+  async function leaveVCChannel() {
+    if (!vcJoined || !vcCurrentChannel) return;
+    const myId = auth.currentUser.uid;
+    try {
+      const participantRef = ref(database, `Chats/${vcCurrentChannel}/vc/participants/${myId}`);
+      await remove(participantRef);
+    } catch (e) {
+      console.error('Error removing participant', e);
+    }
+
+    Object.values(vcPeerConnections).forEach(pc => pc.close());
+    vcPeerConnections = {};
+
+    // remove audio elements
+    const audios = document.querySelectorAll('[id^="vc-audio-"]');
+    audios.forEach(a => a.remove());
+
+    vcJoined = false;
+    vcCurrentChannel = null;
+    // stop local audio when leaving VC
+    try { stopLocalAudio(); } catch (e) { /* ignore */ }
+  }
+
+  function addParticipantToUIVC(participant) {
+    let participantEl = document.getElementById(`vc-participant-${participant.id}`);
+    const containerId = 'vc-participants-container';
+    let container = document.getElementById(containerId);
+    if (!container) {
+      container = document.createElement('div');
+      container.id = containerId;
+      container.style.position = 'fixed';
+      container.style.right = '10px';
+      container.style.bottom = '10px';
+      container.style.zIndex = '1000010';
+      container.style.maxHeight = '200px';
+      container.style.overflow = 'auto';
+      document.body.appendChild(container);
+    }
+    if (!participantEl) {
+      participantEl = document.createElement('div');
+      participantEl.id = `vc-participant-${participant.id}`;
+      participantEl.textContent = participant.email + (participant.id === auth.currentUser.uid ? ' (You)' : '');
+      participantEl.style.padding = '4px 8px';
+      participantEl.style.margin = '2px 0';
+      participantEl.style.background = '#fff';
+      participantEl.style.border = '1px solid #ccc';
+      container.appendChild(participantEl);
+    }
+  }
+
+  function removeParticipantFromUIVC(participantId) {
+    const el = document.getElementById(`vc-participant-${participantId}`);
+    if (el) el.remove();
+  }
+
+  function updateParticipantMuteStatusVC(participantId, isMuted) {
+    const el = document.getElementById(`vc-participant-${participantId}`);
+    if (el) {
+      el.style.opacity = isMuted ? '0.6' : '1';
+    }
   }
 
   function updateReadAllStatus() {
@@ -6687,6 +7071,22 @@ Snake only works outside of school hours (Monday-Friday 8:15 AM - 3:20 PM Pacifi
       }
     });
     await loadMessages(channelName);
+    // Ensure VC channel exists for this chat; default muted
+    try {
+      const vcRef = ref(database, `Chats/${channelName}/vc`);
+      const snap = await get(vcRef);
+      if (!snap.exists()) {
+        await set(vcRef, { createdAt: Date.now(), channel: channelName, defaultMuted: true });
+      }
+    } catch (err) {
+      console.error('Error ensuring VC exists for channel:', err);
+    }
+
+    // update VC toggle label to reflect mute state
+    const vcToggleBtn = document.getElementById('vc-toggle');
+    if (vcToggleBtn) {
+      vcToggleBtn.textContent = `VC: ${vcIsMuted ? 'Muted' : 'On'}`;
+    }
   }
 
   checkForUpdates();
@@ -6700,4 +7100,56 @@ Snake only works outside of school hours (Monday-Friday 8:15 AM - 3:20 PM Pacifi
   const messagesDiv = document.getElementById("messages");
   messagesDiv.scrollTop = messagesDiv.scrollHeight;
   updateModifyButtonVisibility();
+
+  // Wire VC toggle button
+  const vcToggleBtn = document.getElementById('vc-toggle');
+  if (vcToggleBtn) {
+    vcToggleBtn.textContent = `VC: ${vcIsMuted ? 'Muted' : 'On'}`;
+    vcToggleBtn.addEventListener('click', async () => {
+      // Determine current channel (currentChat variable used elsewhere)
+      const channelName = currentChat || 'General';
+
+      // Ensure VC channel exists in DB: path Chats/<channelName>/vc
+      try {
+        const vcRef = ref(database, `Chats/${channelName}/vc`);
+        const snap = await get(vcRef);
+        if (!snap.exists()) {
+          // create default vc channel object
+          await set(vcRef, { createdAt: Date.now(), channel: channelName, defaultMuted: true });
+        }
+      } catch (err) {
+        console.error('Error ensuring VC channel exists:', err);
+      }
+
+      try {
+        // Join the VC channel if not already joined
+        if (!vcJoined || vcCurrentChannel !== channelName) {
+          await joinVCChannel(channelName);
+        }
+
+        // Toggle mute state and update DB
+        vcIsMuted = !vcIsMuted;
+        if (vcLocalStream) {
+          vcLocalStream.getAudioTracks().forEach((t) => (t.enabled = !vcIsMuted));
+        }
+
+        // update participant muted flag in DB
+        try {
+          const myId = auth.currentUser.uid;
+          const partRef = ref(database, `Chats/${channelName}/vc/participants/${myId}`);
+          await update(partRef, { muted: vcIsMuted, timestamp: Date.now() });
+        } catch (e) {
+          console.warn('Could not update participant mute flag', e);
+        }
+
+        vcToggleBtn.textContent = `VC: ${vcIsMuted ? 'Muted' : 'On'}`;
+        // If we muted and want to leave VC entirely, optionally leave channel
+        // For now keep joined but muted; to leave entirely uncomment next lines
+        // if (vcIsMuted) await leaveVCChannel();
+      } catch (error) {
+        console.error('VC toggle error:', error);
+        alert('Microphone access required or an error occurred.');
+      }
+    });
+  }
 })();
