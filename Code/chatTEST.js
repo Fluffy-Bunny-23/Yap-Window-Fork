@@ -27,6 +27,7 @@
   const email = auth.currentUser.email;
   console.log(email);
   async function getAdmins() {
+    console.log("Fetching admin list...");
     const pathRef = ref(database, '/Chat Info/Staff chat (ADMIN, MOD)/Members');
     try {
       const snapshot = await get(pathRef);
@@ -72,6 +73,8 @@
   chatScreen.classList.remove("hidden");
   dayOff = isWeekend();
 
+  console.log("Initializing read messages...");
+
   async function initializeReadMessages() {
     const readMessagesRef = ref(
       database,
@@ -81,6 +84,8 @@
     readMessages = snapshot.val() || {};
     return readMessages;
   }
+
+  console.log("Read messages initialized:", readMessages);
 
   // --- Voice chat helpers (adapted from vcTEST) ---
   function createAudioElement(userId) {
