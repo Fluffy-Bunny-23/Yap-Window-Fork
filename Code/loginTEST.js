@@ -30,8 +30,8 @@
       storageBucket: "yap--window.firebasestorage.app",
       messagingSenderId: "331436638756",
       appId: "1:331436638756:web:15affa3bf7a433d7a04eb1",
-      measurementId: "G-R6NQW8X18R"
-};
+      measurementId: "G-R6NQW8X18R",
+    };
 
     var database, auth, provider, email, mostRecentVersionKey;
     try {
@@ -69,9 +69,9 @@
       return;
     }
 
-  const guiPrimaryUrl = buildRawUrl("Code/guiTEST.js", true);
-      const guiFallbackUrl =
-        "https://raw.githubusercontent.com/TheHumblePotato/Yap-Window/refs/heads/main/Code/guiTEST.js?token=$(date%20+%s)";
+    const guiPrimaryUrl = buildRawUrl("Code/guiTEST.js", true);
+    const guiFallbackUrl =
+      "https://raw.githubusercontent.com/TheHumblePotato/Yap-Window/refs/heads/main/Code/guiTEST.js?token=$(date%20+%s)";
 
     fetch(guiPrimaryUrl)
       .then((r) => {
@@ -98,8 +98,8 @@
             child,
           };
           const chatPrimaryUrl = buildRawUrl("Code/chatTEST.js", true);
-            const chatFallbackUrl =
-              "https://raw.githubusercontent.com/TheHumblePotato/Yap-Window/refs/heads/main/Code/chatTEST.js?token=$(date%20+%s)";
+          const chatFallbackUrl =
+            "https://raw.githubusercontent.com/TheHumblePotato/Yap-Window/refs/heads/main/Code/chatTEST.js?token=$(date%20+%s)";
 
           fetch(chatPrimaryUrl)
             .then((r) => {
