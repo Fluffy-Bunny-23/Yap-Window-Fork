@@ -209,7 +209,7 @@
 
     pc.onicecandidate = (event) => {
       if (event.candidate && vcCurrentChannel) {
-        push(ref(database, `Chats/${vcCurrentChannel}/vc/signals`), {
+        push(ref(database, `VC/${vcCurrentChannel}/signals`), {
           type: "ice",
           sender: auth.currentUser.uid,
           receiver: participantId,
@@ -250,7 +250,7 @@
       const offer = await pc.createOffer({ offerToReceiveAudio: true });
       await pc.setLocalDescription(offer);
       if (vcCurrentChannel) {
-        push(ref(database, `Chats/${vcCurrentChannel}/vc/signals`), {
+        push(ref(database, `VC/${vcCurrentChannel}/signals`), {
           type: 'offer',
           sender: auth.currentUser.uid,
           receiver: participantId,
@@ -272,7 +272,7 @@
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
       if (vcCurrentChannel) {
-        push(ref(database, `Chats/${vcCurrentChannel}/vc/signals`), {
+        push(ref(database, `VC/${vcCurrentChannel}/signals`), {
           type: 'answer',
           sender: auth.currentUser.uid,
           receiver: senderId,
@@ -320,7 +320,7 @@
 
     // ensure vc node exists
     try {
-      const refVc = ref(database, `Chats/${channelName}/vc`);
+      const refVc = ref(database, `VC/${channelName}`);
       const snap = await get(refVc);
       if (!snap.exists()) {
         await set(refVc, { createdAt: Date.now(), channel: channelName, defaultMuted: true });
@@ -342,12 +342,12 @@
     // mark participant in DB
     const myId = auth.currentUser.uid;
     const myEmail = auth.currentUser.email;
-    const participantRef = ref(database, `Chats/${channelName}/vc/participants/${myId}`);
-    await set(participantRef, { id: myId, email: myEmail, muted: vcIsMuted, timestamp: Date.now() });
+  const participantRef = ref(database, `VC/${channelName}/participants/${myId}`);
+  await set(participantRef, { id: myId, email: myEmail, muted: vcIsMuted, timestamp: Date.now() });
 
     // listen for participants and signals
-    const participantsRef = ref(database, `Chats/${channelName}/vc/participants`);
-    const signalsRef = ref(database, `Chats/${channelName}/vc/signals`);
+  const participantsRef = ref(database, `VC/${channelName}/participants`);
+  const signalsRef = ref(database, `VC/${channelName}/signals`);
 
     // participants added
     onChildAdded(participantsRef, (snapshot) => {
@@ -404,7 +404,7 @@
     if (!vcJoined || !vcCurrentChannel) return;
     const myId = auth.currentUser.uid;
     try {
-      const participantRef = ref(database, `Chats/${vcCurrentChannel}/vc/participants/${myId}`);
+    const participantRef = ref(database, `VC/${vcCurrentChannel}/participants/${myId}`);
       await remove(participantRef);
     } catch (e) {
       console.error('Error removing participant', e);
@@ -1148,6 +1148,17 @@
     const messagesDiv = document.getElementById("messages");
     messagesDiv.innerHTML = "";
     currentChat = chatName;
+
+    // Ensure VC counterpart exists for this chat under VC/<chatName>
+    try {
+      const vcRootRef = ref(database, `VC/${chatName}`);
+      const vcSnap = await get(vcRootRef);
+      if (!vcSnap.exists()) {
+        await set(vcRootRef, { createdAt: Date.now(), channel: chatName, defaultMuted: true });
+      }
+    } catch (err) {
+      console.error('Error ensuring VC counterpart for chat:', err);
+    }
 
     const chatRef = ref(database, `Chats/${chatName}`);
     const snapshot = await get(chatRef);
@@ -7071,9 +7082,9 @@ Snake only works outside of school hours (Monday-Friday 8:15 AM - 3:20 PM Pacifi
       }
     });
     await loadMessages(channelName);
-    // Ensure VC channel exists for this chat; default muted
+    // Ensure VC channel exists for this chat; default muted (now under VC root)
     try {
-      const vcRef = ref(database, `Chats/${channelName}/vc`);
+      const vcRef = ref(database, `VC/${channelName}`);
       const snap = await get(vcRef);
       if (!snap.exists()) {
         await set(vcRef, { createdAt: Date.now(), channel: channelName, defaultMuted: true });
@@ -7109,9 +7120,9 @@ Snake only works outside of school hours (Monday-Friday 8:15 AM - 3:20 PM Pacifi
       // Determine current channel (currentChat variable used elsewhere)
       const channelName = currentChat || 'General';
 
-      // Ensure VC channel exists in DB: path Chats/<channelName>/vc
+      // Ensure VC channel exists in DB: path VC/<channelName>
       try {
-        const vcRef = ref(database, `Chats/${channelName}/vc`);
+        const vcRef = ref(database, `VC/${channelName}`);
         const snap = await get(vcRef);
         if (!snap.exists()) {
           // create default vc channel object
@@ -7136,7 +7147,7 @@ Snake only works outside of school hours (Monday-Friday 8:15 AM - 3:20 PM Pacifi
         // update participant muted flag in DB
         try {
           const myId = auth.currentUser.uid;
-          const partRef = ref(database, `Chats/${channelName}/vc/participants/${myId}`);
+          const partRef = ref(database, `VC/${channelName}/participants/${myId}`);
           await update(partRef, { muted: vcIsMuted, timestamp: Date.now() });
         } catch (e) {
           console.warn('Could not update participant mute flag', e);
